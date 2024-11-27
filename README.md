@@ -507,6 +507,109 @@ around later.
 
     ## Joining with `by = join_by(GEOID, year)`
 
+| LOCATION                            | Predicted_Votes | Actual_Votes | Absolute_Error_Pct |
+|:------------------------------------|----------------:|-------------:|:-------------------|
+| Alamance County, North Carolina     |           91297 |        89831 | 1.63%              |
+| Alexander County, North Carolina    |           21013 |        20677 | 1.62%              |
+| Alleghany County, North Carolina    |            6786 |         6496 | 4.46%              |
+| Anson County, North Carolina        |           11731 |        10875 | 7.87%              |
+| Ashe County, North Carolina         |           16324 |        16253 | 0.44%              |
+| Avery County, North Carolina        |            9388 |         9489 | 1.06%              |
+| Beaufort County, North Carolina     |           26213 |        26572 | 1.35%              |
+| Bertie County, North Carolina       |           10748 |         9186 | 17.00%             |
+| Bladen County, North Carolina       |           17070 |        16764 | 1.83%              |
+| Brunswick County, North Carolina    |           99952 |       108773 | 8.11%              |
+| Buncombe County, North Carolina     |          156465 |       160510 | 2.52%              |
+| Burke County, North Carolina        |           49230 |        45847 | 7.38%              |
+| Cabarrus County, North Carolina     |          123899 |       120202 | 3.08%              |
+| Caldwell County, North Carolina     |           44251 |        43540 | 1.63%              |
+| Camden County, North Carolina       |            6463 |         6304 | 2.52%              |
+| Carteret County, North Carolina     |           42678 |        45817 | 6.85%              |
+| Caswell County, North Carolina      |           13388 |        12040 | 11.20%             |
+| Catawba County, North Carolina      |           86862 |        87109 | 0.28%              |
+| Chatham County, North Carolina      |           47009 |        52319 | 10.15%             |
+| Cherokee County, North Carolina     |           18990 |        17824 | 6.54%              |
+| Chowan County, North Carolina       |            7981 |         7552 | 5.68%              |
+| Clay County, North Carolina         |            7190 |         7728 | 6.96%              |
+| Cleveland County, North Carolina    |           53665 |        51706 | 3.79%              |
+| Columbus County, North Carolina     |           27015 |        27110 | 0.35%              |
+| Craven County, North Carolina       |           54428 |        55645 | 2.19%              |
+| Cumberland County, North Carolina   |          160963 |       140623 | 14.46%             |
+| Currituck County, North Carolina    |           17851 |        18053 | 1.12%              |
+| Dare County, North Carolina         |           25244 |        25196 | 0.19%              |
+| Davidson County, North Carolina     |           93229 |        93452 | 0.24%              |
+| Davie County, North Carolina        |           25384 |        26850 | 5.46%              |
+| Duplin County, North Carolina       |           23759 |        22900 | 3.75%              |
+| Durham County, North Carolina       |          175096 |       180910 | 3.21%              |
+| Edgecombe County, North Carolina    |           27011 |        24451 | 10.47%             |
+| Forsyth County, North Carolina      |          195287 |       203291 | 3.94%              |
+| Franklin County, North Carolina     |           38997 |        42667 | 8.60%              |
+| Gaston County, North Carolina       |          125635 |       119256 | 5.35%              |
+| Gates County, North Carolina        |            6363 |         5868 | 8.44%              |
+| Graham County, North Carolina       |            4581 |         4779 | 4.14%              |
+| Granville County, North Carolina    |           32982 |        32109 | 2.72%              |
+| Greene County, North Carolina       |            8887 |         8450 | 5.17%              |
+| Guilford County, North Carolina     |          277263 |       285053 | 2.73%              |
+| Halifax County, North Carolina      |           27635 |        23851 | 15.87%             |
+| Harnett County, North Carolina      |           69408 |        63757 | 8.86%              |
+| Haywood County, North Carolina      |           38051 |        37851 | 0.53%              |
+| Henderson County, North Carolina    |           72179 |        69974 | 3.15%              |
+| Hertford County, North Carolina     |           11856 |         9818 | 20.76%             |
+| Hoke County, North Carolina         |           26304 |        22767 | 15.54%             |
+| Hyde County, North Carolina         |            2584 |         2421 | 6.73%              |
+| Iredell County, North Carolina      |          107946 |       110875 | 2.64%              |
+| Jackson County, North Carolina      |           23066 |        21942 | 5.12%              |
+| Johnston County, North Carolina     |          117218 |       124678 | 5.98%              |
+| Jones County, North Carolina        |            5511 |         5463 | 0.88%              |
+| Lee County, North Carolina          |           31533 |        30081 | 4.83%              |
+| Lenoir County, North Carolina       |           28728 |        27503 | 4.45%              |
+| Lincoln County, North Carolina      |           52929 |        55582 | 4.77%              |
+| McDowell County, North Carolina     |           24218 |        23655 | 2.38%              |
+| Macon County, North Carolina        |           22891 |        21934 | 4.36%              |
+| Madison County, North Carolina      |           12708 |        13621 | 6.70%              |
+| Martin County, North Carolina       |           13044 |        12040 | 8.34%              |
+| Mecklenburg County, North Carolina  |          600072 |       577527 | 3.90%              |
+| Mitchell County, North Carolina     |            8569 |         8846 | 3.13%              |
+| Montgomery County, North Carolina   |           13906 |        13179 | 5.52%              |
+| Moore County, North Carolina        |           61705 |        61819 | 0.18%              |
+| Nash County, North Carolina         |           52048 |        52471 | 0.81%              |
+| New Hanover County, North Carolina  |          136068 |       138734 | 1.92%              |
+| Northampton County, North Carolina  |           11202 |         9215 | 21.56%             |
+| Onslow County, North Carolina       |           94539 |        81681 | 15.74%             |
+| Orange County, North Carolina       |           79838 |        87807 | 9.08%              |
+| Pamlico County, North Carolina      |            8043 |         7976 | 0.84%              |
+| Pasquotank County, North Carolina   |           22183 |        20343 | 9.04%              |
+| Pender County, North Carolina       |           35606 |        38909 | 8.49%              |
+| Perquimans County, North Carolina   |            8273 |         7666 | 7.92%              |
+| Person County, North Carolina       |           23140 |        22036 | 5.01%              |
+| Pitt County, North Carolina         |           87087 |        87131 | 0.05%              |
+| Polk County, North Carolina         |           13246 |        13068 | 1.36%              |
+| Randolph County, North Carolina     |           76418 |        76045 | 0.49%              |
+| Richmond County, North Carolina     |           21878 |        19873 | 10.09%             |
+| Robeson County, North Carolina      |           57056 |        46770 | 21.99%             |
+| Rockingham County, North Carolina   |           49722 |        49595 | 0.26%              |
+| Rowan County, North Carolina        |           77109 |        75394 | 2.27%              |
+| Rutherford County, North Carolina   |           36216 |        34670 | 4.46%              |
+| Sampson County, North Carolina      |           28525 |        27969 | 1.99%              |
+| Scotland County, North Carolina     |           16984 |        14626 | 16.12%             |
+| Stanly County, North Carolina       |           34426 |        36714 | 6.23%              |
+| Stokes County, North Carolina       |           26854 |        27175 | 1.18%              |
+| Surry County, North Carolina        |           37697 |        37508 | 0.50%              |
+| Swain County, North Carolina        |            7635 |         7052 | 8.27%              |
+| Transylvania County, North Carolina |           21627 |        20780 | 4.08%              |
+| Tyrrell County, North Carolina      |            1741 |         1757 | 0.91%              |
+| Union County, North Carolina        |          134750 |       139355 | 3.30%              |
+| Vance County, North Carolina        |           22537 |        20092 | 12.17%             |
+| Wake County, North Carolina         |          647679 |       653580 | 0.90%              |
+| Warren County, North Carolina       |           11327 |        10013 | 13.12%             |
+| Washington County, North Carolina   |            6234 |         5944 | 4.88%              |
+| Watauga County, North Carolina      |           29884 |        33095 | 9.70%              |
+| Wayne County, North Carolina        |           58100 |        54762 | 6.10%              |
+| Wilkes County, North Carolina       |           36290 |        36320 | 0.08%              |
+| Wilson County, North Carolina       |           41333 |        40045 | 3.22%              |
+| Yadkin County, North Carolina       |           20656 |        20397 | 1.27%              |
+| Yancey County, North Carolina       |           11187 |        11287 | 0.89%              |
+
     ## # A tibble: 100 × 4
     ##    LOCATION                      Predicted_Votes Actual_Votes Absolute_Error_Pct
     ##    <chr>                                   <int>        <dbl> <chr>             
