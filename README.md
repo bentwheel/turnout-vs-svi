@@ -309,21 +309,21 @@ but predictive of turnout outcomes in 2024. The variables used to
 measure overall SVI across all four categories which are present across
 **all versions** of the SVI data available (2010 - 2022) are as follows:
 
-| SVI Feature | Description                                                                               |
-|-------------|-------------------------------------------------------------------------------------------|
-| EPL_POV\*   | Percentile percentage of persons below 100% (2010 - 2020) / 150% (2020+) poverty estimate |
-| EPL_UNEMP   | Percentile percentage of civilian (age 16+) unemployed estimate                           |
-| EPL_NOHSDP  | Percentile percentage of persons with no high school diploma (age 25+) estimate           |
-| EPL_AGE65   | Percentile percentage of persons aged 65 and older estimate                               |
-| EPL_AGE17   | Percentile percentage of persons aged 17 and younger estimate                             |
-| EPL_SNGPNT  | Percentile percentage of single-parent households with children under 18 estimate         |
-| EPL_LIMENG  | Percentile percentage of persons (age 5+) who speak English “less than well”              |
-| EPL_MINRTY  | Percentile percentage of persons who identify as a racial/ethnic identity in the minority |
-| EPL_MUNIT   | Percentile percentage housing in structures with 10 or more units                         |
-| EPL_MOBILE  | Percentile percentage mobile homes                                                        |
-| EPL_CROWD   | Percentile percentage households with more than 1 person per room                         |
-| EPL_NOVEH   | Percentile percentage households with no vehicle available                                |
-| EPL_GROUPQ  | Percentile percentage of persons in group quarters estimate                               |
+| SVI Feature | Description |
+|----|----|
+| EPL_POV\* | Percentile percentage of persons below 100% (2010 - 2020) / 150% (2020+) poverty estimate |
+| EPL_UNEMP | Percentile percentage of civilian (age 16+) unemployed estimate |
+| EPL_NOHSDP | Percentile percentage of persons with no high school diploma (age 25+) estimate |
+| EPL_AGE65 | Percentile percentage of persons aged 65 and older estimate |
+| EPL_AGE17 | Percentile percentage of persons aged 17 and younger estimate |
+| EPL_SNGPNT | Percentile percentage of single-parent households with children under 18 estimate |
+| EPL_LIMENG | Percentile percentage of persons (age 5+) who speak English “less than well” |
+| EPL_MINRTY | Percentile percentage of persons who identify as a racial/ethnic identity in the minority |
+| EPL_MUNIT | Percentile percentage housing in structures with 10 or more units |
+| EPL_MOBILE | Percentile percentage mobile homes |
+| EPL_CROWD | Percentile percentage households with more than 1 person per room |
+| EPL_NOVEH | Percentile percentage households with no vehicle available |
+| EPL_GROUPQ | Percentile percentage of persons in group quarters estimate |
 
 Often a very good *first step* in building a predictive model is to get
 a handle on your feature space - including understanding their
@@ -347,21 +347,21 @@ percentile ranking of underlying proportion measures that are drawn
 directly from ACS 5-year data for the applicable time period. Each of
 these proportion measures is also present in SVI datasets.
 
-| SVI Feature | Description                                                                    |
-|-------------|--------------------------------------------------------------------------------|
-| EP_POV\*    | Percentage of persons below 100% (2010 - 2020) / 150% (2020+) poverty estimate |
-| EP_UNEMP    | Percentage of civilian (age 16+) unemployed estimate                           |
-| EP_NOHSDP   | Percentage of persons with no high school diploma (age 25+) estimate           |
-| EP_AGE65    | Percentage of persons aged 65 and older estimate                               |
-| EP_AGE17    | Percentage of persons aged 17 and younger estimate                             |
-| EP_SNGPNT   | Percentage of single-parent households with children under 18 estimate         |
-| EP_LIMENG   | Percentage of persons (age 5+) who speak English “less than well”              |
-| EP_MINRTY   | Percentage of persons who identify as a racial/ethnic identity in the minority |
-| EP_MUNIT    | Percentage housing in structures with 10 or more units                         |
-| EP_MOBILE   | Percentage mobile homes                                                        |
-| EP_CROWD    | Percentage households with more than 1 person per room                         |
-| EP_NOVEH    | Percentage households with no vehicle available                                |
-| EP_GROUPQ   | Percentage of persons in group quarters estimate                               |
+| SVI Feature | Description |
+|----|----|
+| EP_POV\* | Percentage of persons below 100% (2010 - 2020) / 150% (2020+) poverty estimate |
+| EP_UNEMP | Percentage of civilian (age 16+) unemployed estimate |
+| EP_NOHSDP | Percentage of persons with no high school diploma (age 25+) estimate |
+| EP_AGE65 | Percentage of persons aged 65 and older estimate |
+| EP_AGE17 | Percentage of persons aged 17 and younger estimate |
+| EP_SNGPNT | Percentage of single-parent households with children under 18 estimate |
+| EP_LIMENG | Percentage of persons (age 5+) who speak English “less than well” |
+| EP_MINRTY | Percentage of persons who identify as a racial/ethnic identity in the minority |
+| EP_MUNIT | Percentage housing in structures with 10 or more units |
+| EP_MOBILE | Percentage mobile homes |
+| EP_CROWD | Percentage households with more than 1 person per room |
+| EP_NOVEH | Percentage households with no vehicle available |
+| EP_GROUPQ | Percentage of persons in group quarters estimate |
 
     ## Joining with `by = join_by(GEOID, year)`
 
@@ -486,148 +486,248 @@ regime with L2 distances penalization, which is known to be better at
 “culling” the feature space to arrive at a more parsimonious model with
 fewer features).
 
+### Refining the Feature Space
+
+Before fitting the regularized model, several refinements to the feature
+set are warranted:
+
+**Removing EP_POV**: The poverty variable (EP_POV) changed its
+definition from 100% of the federal poverty level (in SVI 2010-2018) to
+150% of the poverty level (in SVI 2020+). This introduces a structural
+break in the feature across the training data, making it unreliable as a
+predictor. It is excluded from the final model.
+
+**Log-transforming skewed variables**: Several EP\_ variables
+(EP_LIMENG, EP_CROWD, EP_MUNIT) exhibit strong right-skew, with many
+counties clustered near zero. Applying a `log(1 + x)` transformation
+improves linearity with the response.
+
+**Adding log(population)**: County total population (`E_TOTPOP`, already
+present in the SVI data) serves as a proxy for county scale and
+urbanicity. We include `log(E_TOTPOP)` to capture the well-known
+relationship between county size and turnout patterns.
+
+**Adding election year**: Including the election year as a numeric
+feature allows the model to capture secular shifts in the relationship
+between SVI variables and turnout over time. Lasso regularization will
+zero this out if it is not informative.
+
+**Weighting by county size**: Counties vary enormously in population,
+and ACS estimates for small counties have substantially higher standard
+errors. Weighting observations by `log(VEP)` in the loss function allows
+the model to focus on counties where the signal-to-noise ratio is
+highest.
+
+**Leave-one-year-out cross-validation**: Rather than random 10-fold CV
+(which mixes counties from different election years in each fold), we
+use leave-one-year-out CV. This trains on two election cycles and tests
+on the third, directly measuring whether the model generalizes across
+elections — the actual use case.
+
 ### Lasso Model Results
 
-Using a matrix containing all EP\_ features as well as all interaction
-features, below shows a chart with the regressor values for primary
-variables and interactions that emerged from the `glmnet` process (where
-features where the absolute value of the regressor term is greater than
-.0005, as well as the intercept, are both excluded).
+Using the refined feature matrix (with all pairwise interactions), below
+shows a chart with the regressor values for primary variables and
+interactions that emerged from the `glmnet` process (where features
+where the absolute value of the regressor term is greater than .0005, as
+well as the intercept, are both excluded).
 
-    ## [1] 0.4829816
+    ## [1] "Leave-one-year-out CV R-squared (on scaled turnout): 0.4973"
 
 ![](README_files/figure-gfm/turnout-model-regularization-1.png)<!-- -->
 
-# Testing the model on North Carolina’s 2024 results
+# Testing the Model on 2024 Results
 
-Finally, I want to test my model on my home state’s results in 2024.
-Here the model performs quite well, showing an overall R-squared of .99
-(!) on this data. Wow. Don’t have time to unpack this now but will poke
-around later.
+Now that we have a trained model, let’s see how it performs on
+completely unseen data: the 2024 presidential election. The model was
+trained exclusively on 2012, 2016, and 2020 data, so 2024 represents a
+true out-of-sample validation.
 
-    ## Joining with `by = join_by(GEOID, year)`
+## North Carolina: A Closer Look
 
-| LOCATION                            | Predicted_Votes | Actual_Votes | Absolute_Error_Pct |
-|:------------------------------------|----------------:|-------------:|:-------------------|
-| Alamance County, North Carolina     |           91297 |        89831 | 1.63%              |
-| Alexander County, North Carolina    |           21013 |        20677 | 1.62%              |
-| Alleghany County, North Carolina    |            6786 |         6496 | 4.46%              |
-| Anson County, North Carolina        |           11731 |        10875 | 7.87%              |
-| Ashe County, North Carolina         |           16324 |        16253 | 0.44%              |
-| Avery County, North Carolina        |            9388 |         9489 | 1.06%              |
-| Beaufort County, North Carolina     |           26213 |        26572 | 1.35%              |
-| Bertie County, North Carolina       |           10748 |         9186 | 17.00%             |
-| Bladen County, North Carolina       |           17070 |        16764 | 1.83%              |
-| Brunswick County, North Carolina    |           99952 |       108773 | 8.11%              |
-| Buncombe County, North Carolina     |          156465 |       160510 | 2.52%              |
-| Burke County, North Carolina        |           49230 |        45847 | 7.38%              |
-| Cabarrus County, North Carolina     |          123899 |       120202 | 3.08%              |
-| Caldwell County, North Carolina     |           44251 |        43540 | 1.63%              |
-| Camden County, North Carolina       |            6463 |         6304 | 2.52%              |
-| Carteret County, North Carolina     |           42678 |        45817 | 6.85%              |
-| Caswell County, North Carolina      |           13388 |        12040 | 11.20%             |
-| Catawba County, North Carolina      |           86862 |        87109 | 0.28%              |
-| Chatham County, North Carolina      |           47009 |        52319 | 10.15%             |
-| Cherokee County, North Carolina     |           18990 |        17824 | 6.54%              |
-| Chowan County, North Carolina       |            7981 |         7552 | 5.68%              |
-| Clay County, North Carolina         |            7190 |         7728 | 6.96%              |
-| Cleveland County, North Carolina    |           53665 |        51706 | 3.79%              |
-| Columbus County, North Carolina     |           27015 |        27110 | 0.35%              |
-| Craven County, North Carolina       |           54428 |        55645 | 2.19%              |
-| Cumberland County, North Carolina   |          160963 |       140623 | 14.46%             |
-| Currituck County, North Carolina    |           17851 |        18053 | 1.12%              |
-| Dare County, North Carolina         |           25244 |        25196 | 0.19%              |
-| Davidson County, North Carolina     |           93229 |        93452 | 0.24%              |
-| Davie County, North Carolina        |           25384 |        26850 | 5.46%              |
-| Duplin County, North Carolina       |           23759 |        22900 | 3.75%              |
-| Durham County, North Carolina       |          175096 |       180910 | 3.21%              |
-| Edgecombe County, North Carolina    |           27011 |        24451 | 10.47%             |
-| Forsyth County, North Carolina      |          195287 |       203291 | 3.94%              |
-| Franklin County, North Carolina     |           38997 |        42667 | 8.60%              |
-| Gaston County, North Carolina       |          125635 |       119256 | 5.35%              |
-| Gates County, North Carolina        |            6363 |         5868 | 8.44%              |
-| Graham County, North Carolina       |            4581 |         4779 | 4.14%              |
-| Granville County, North Carolina    |           32982 |        32109 | 2.72%              |
-| Greene County, North Carolina       |            8887 |         8450 | 5.17%              |
-| Guilford County, North Carolina     |          277263 |       285053 | 2.73%              |
-| Halifax County, North Carolina      |           27635 |        23851 | 15.87%             |
-| Harnett County, North Carolina      |           69408 |        63757 | 8.86%              |
-| Haywood County, North Carolina      |           38051 |        37851 | 0.53%              |
-| Henderson County, North Carolina    |           72179 |        69974 | 3.15%              |
-| Hertford County, North Carolina     |           11856 |         9818 | 20.76%             |
-| Hoke County, North Carolina         |           26304 |        22767 | 15.54%             |
-| Hyde County, North Carolina         |            2584 |         2421 | 6.73%              |
-| Iredell County, North Carolina      |          107946 |       110875 | 2.64%              |
-| Jackson County, North Carolina      |           23066 |        21942 | 5.12%              |
-| Johnston County, North Carolina     |          117218 |       124678 | 5.98%              |
-| Jones County, North Carolina        |            5511 |         5463 | 0.88%              |
-| Lee County, North Carolina          |           31533 |        30081 | 4.83%              |
-| Lenoir County, North Carolina       |           28728 |        27503 | 4.45%              |
-| Lincoln County, North Carolina      |           52929 |        55582 | 4.77%              |
-| McDowell County, North Carolina     |           24218 |        23655 | 2.38%              |
-| Macon County, North Carolina        |           22891 |        21934 | 4.36%              |
-| Madison County, North Carolina      |           12708 |        13621 | 6.70%              |
-| Martin County, North Carolina       |           13044 |        12040 | 8.34%              |
-| Mecklenburg County, North Carolina  |          600072 |       577527 | 3.90%              |
-| Mitchell County, North Carolina     |            8569 |         8846 | 3.13%              |
-| Montgomery County, North Carolina   |           13906 |        13179 | 5.52%              |
-| Moore County, North Carolina        |           61705 |        61819 | 0.18%              |
-| Nash County, North Carolina         |           52048 |        52471 | 0.81%              |
-| New Hanover County, North Carolina  |          136068 |       138734 | 1.92%              |
-| Northampton County, North Carolina  |           11202 |         9215 | 21.56%             |
-| Onslow County, North Carolina       |           94539 |        81681 | 15.74%             |
-| Orange County, North Carolina       |           79838 |        87807 | 9.08%              |
-| Pamlico County, North Carolina      |            8043 |         7976 | 0.84%              |
-| Pasquotank County, North Carolina   |           22183 |        20343 | 9.04%              |
-| Pender County, North Carolina       |           35606 |        38909 | 8.49%              |
-| Perquimans County, North Carolina   |            8273 |         7666 | 7.92%              |
-| Person County, North Carolina       |           23140 |        22036 | 5.01%              |
-| Pitt County, North Carolina         |           87087 |        87131 | 0.05%              |
-| Polk County, North Carolina         |           13246 |        13068 | 1.36%              |
-| Randolph County, North Carolina     |           76418 |        76045 | 0.49%              |
-| Richmond County, North Carolina     |           21878 |        19873 | 10.09%             |
-| Robeson County, North Carolina      |           57056 |        46770 | 21.99%             |
-| Rockingham County, North Carolina   |           49722 |        49595 | 0.26%              |
-| Rowan County, North Carolina        |           77109 |        75394 | 2.27%              |
-| Rutherford County, North Carolina   |           36216 |        34670 | 4.46%              |
-| Sampson County, North Carolina      |           28525 |        27969 | 1.99%              |
-| Scotland County, North Carolina     |           16984 |        14626 | 16.12%             |
-| Stanly County, North Carolina       |           34426 |        36714 | 6.23%              |
-| Stokes County, North Carolina       |           26854 |        27175 | 1.18%              |
-| Surry County, North Carolina        |           37697 |        37508 | 0.50%              |
-| Swain County, North Carolina        |            7635 |         7052 | 8.27%              |
-| Transylvania County, North Carolina |           21627 |        20780 | 4.08%              |
-| Tyrrell County, North Carolina      |            1741 |         1757 | 0.91%              |
-| Union County, North Carolina        |          134750 |       139355 | 3.30%              |
-| Vance County, North Carolina        |           22537 |        20092 | 12.17%             |
-| Wake County, North Carolina         |          647679 |       653580 | 0.90%              |
-| Warren County, North Carolina       |           11327 |        10013 | 13.12%             |
-| Washington County, North Carolina   |            6234 |         5944 | 4.88%              |
-| Watauga County, North Carolina      |           29884 |        33095 | 9.70%              |
-| Wayne County, North Carolina        |           58100 |        54762 | 6.10%              |
-| Wilkes County, North Carolina       |           36290 |        36320 | 0.08%              |
-| Wilson County, North Carolina       |           41333 |        40045 | 3.22%              |
-| Yadkin County, North Carolina       |           20656 |        20397 | 1.27%              |
-| Yancey County, North Carolina       |           11187 |        11287 | 0.89%              |
+First, let’s zoom in on my home state of North Carolina, where the model
+performs quite well on the 2024 data.
 
-    ## # A tibble: 100 × 4
-    ##    LOCATION                      Predicted_Votes Actual_Votes Absolute_Error_Pct
-    ##    <chr>                                   <int>        <dbl> <chr>             
-    ##  1 Alamance County, North Carol…           91297        89831 1.63%             
-    ##  2 Alexander County, North Caro…           21013        20677 1.62%             
-    ##  3 Alleghany County, North Caro…            6786         6496 4.46%             
-    ##  4 Anson County, North Carolina            11731        10875 7.87%             
-    ##  5 Ashe County, North Carolina             16324        16253 0.44%             
-    ##  6 Avery County, North Carolina             9388         9489 1.06%             
-    ##  7 Beaufort County, North Carol…           26213        26572 1.35%             
-    ##  8 Bertie County, North Carolina           10748         9186 17.00%            
-    ##  9 Bladen County, North Carolina           17070        16764 1.83%             
-    ## 10 Brunswick County, North Caro…           99952       108773 8.11%             
-    ## # ℹ 90 more rows
+| LOCATION | Predicted_Votes | Actual_Votes | Absolute_Error_Pct |
+|:---|---:|---:|:---|
+| Alamance County, North Carolina | 94521 | 89831 | 5.22% |
+| Alexander County, North Carolina | 21140 | 20677 | 2.24% |
+| Alleghany County, North Carolina | 6597 | 6496 | 1.55% |
+| Anson County, North Carolina | 11691 | 10875 | 7.50% |
+| Ashe County, North Carolina | 16098 | 16253 | 0.95% |
+| Avery County, North Carolina | 9141 | 9489 | 3.67% |
+| Beaufort County, North Carolina | 25899 | 26572 | 2.53% |
+| Bertie County, North Carolina | 10132 | 9186 | 10.30% |
+| Bladen County, North Carolina | 17273 | 16764 | 3.04% |
+| Brunswick County, North Carolina | 97205 | 109378 | 11.13% |
+| Buncombe County, North Carolina | 166496 | 160510 | 3.73% |
+| Burke County, North Carolina | 49063 | 45847 | 7.01% |
+| Cabarrus County, North Carolina | 127578 | 120202 | 6.14% |
+| Caldwell County, North Carolina | 43357 | 43540 | 0.42% |
+| Camden County, North Carolina | 6225 | 6304 | 1.25% |
+| Carteret County, North Carolina | 43071 | 45817 | 5.99% |
+| Caswell County, North Carolina | 13078 | 12040 | 8.62% |
+| Catawba County, North Carolina | 88949 | 87109 | 2.11% |
+| Chatham County, North Carolina | 47385 | 52301 | 9.40% |
+| Cherokee County, North Carolina | 18831 | 17824 | 5.65% |
+| Chowan County, North Carolina | 7877 | 7552 | 4.30% |
+| Clay County, North Carolina | 6921 | 7728 | 10.44% |
+| Cleveland County, North Carolina | 54445 | 51706 | 5.30% |
+| Columbus County, North Carolina | 27406 | 26402 | 3.80% |
+| Craven County, North Carolina | 56187 | 56173 | 0.02% |
+| Cumberland County, North Carolina | 170093 | 140513 | 21.05% |
+| Currituck County, North Carolina | 18231 | 18053 | 0.99% |
+| Dare County, North Carolina | 25162 | 25196 | 0.13% |
+| Davidson County, North Carolina | 96294 | 93452 | 3.04% |
+| Davie County, North Carolina | 25517 | 26850 | 4.96% |
+| Duplin County, North Carolina | 23038 | 22898 | 0.61% |
+| Durham County, North Carolina | 176527 | 180912 | 2.42% |
+| Edgecombe County, North Carolina | 26723 | 24448 | 9.31% |
+| Forsyth County, North Carolina | 205895 | 204726 | 0.57% |
+| Franklin County, North Carolina | 39148 | 42667 | 8.25% |
+| Gaston County, North Carolina | 129732 | 119256 | 8.78% |
+| Gates County, North Carolina | 6565 | 5868 | 11.88% |
+| Graham County, North Carolina | 4478 | 4779 | 6.30% |
+| Granville County, North Carolina | 33229 | 32104 | 3.50% |
+| Greene County, North Carolina | 8815 | 8450 | 4.32% |
+| Guilford County, North Carolina | 291496 | 285053 | 2.26% |
+| Halifax County, North Carolina | 26486 | 23965 | 10.52% |
+| Harnett County, North Carolina | 73845 | 63757 | 15.82% |
+| Haywood County, North Carolina | 38668 | 37851 | 2.16% |
+| Henderson County, North Carolina | 73629 | 69974 | 5.22% |
+| Hertford County, North Carolina | 11658 | 9843 | 18.44% |
+| Hoke County, North Carolina | 27570 | 22767 | 21.10% |
+| Hyde County, North Carolina | 2544 | 2421 | 5.08% |
+| Iredell County, North Carolina | 110927 | 110875 | 0.05% |
+| Jackson County, North Carolina | 23781 | 21942 | 8.38% |
+| Johnston County, North Carolina | 123333 | 124678 | 1.08% |
+| Jones County, North Carolina | 5590 | 5463 | 2.32% |
+| Lee County, North Carolina | 32258 | 30081 | 7.24% |
+| Lenoir County, North Carolina | 27960 | 27503 | 1.66% |
+| Lincoln County, North Carolina | 53579 | 55582 | 3.60% |
+| McDowell County, North Carolina | 24213 | 23655 | 2.36% |
+| Macon County, North Carolina | 22763 | 21934 | 3.78% |
+| Madison County, North Carolina | 12846 | 13621 | 5.69% |
+| Martin County, North Carolina | 12445 | 12040 | 3.36% |
+| Mecklenburg County, North Carolina | 631990 | 577505 | 9.43% |
+| Mitchell County, North Carolina | 8485 | 8842 | 4.04% |
+| Montgomery County, North Carolina | 13924 | 13206 | 5.44% |
+| Moore County, North Carolina | 63371 | 61790 | 2.56% |
+| Nash County, North Carolina | 51757 | 52471 | 1.36% |
+| New Hanover County, North Carolina | 142128 | 138734 | 2.45% |
+| Northampton County, North Carolina | 10690 | 9215 | 16.01% |
+| Onslow County, North Carolina | 99666 | 81681 | 22.02% |
+| Orange County, North Carolina | 80800 | 87807 | 7.98% |
+| Pamlico County, North Carolina | 7927 | 7976 | 0.61% |
+| Pasquotank County, North Carolina | 22594 | 20343 | 11.07% |
+| Pender County, North Carolina | 35898 | 38909 | 7.74% |
+| Perquimans County, North Carolina | 8082 | 7666 | 5.43% |
+| Person County, North Carolina | 23667 | 22036 | 7.40% |
+| Pitt County, North Carolina | 90605 | 87130 | 3.99% |
+| Polk County, North Carolina | 13153 | 13068 | 0.65% |
+| Randolph County, North Carolina | 78172 | 76008 | 2.85% |
+| Richmond County, North Carolina | 21218 | 19873 | 6.77% |
+| Robeson County, North Carolina | 55314 | 46770 | 18.27% |
+| Rockingham County, North Carolina | 49021 | 49595 | 1.16% |
+| Rowan County, North Carolina | 78760 | 75394 | 4.46% |
+| Rutherford County, North Carolina | 36299 | 34670 | 4.70% |
+| Sampson County, North Carolina | 28371 | 28201 | 0.60% |
+| Scotland County, North Carolina | 16249 | 14626 | 11.10% |
+| Stanly County, North Carolina | 35295 | 36714 | 3.87% |
+| Stokes County, North Carolina | 27084 | 27175 | 0.33% |
+| Surry County, North Carolina | 37355 | 37508 | 0.41% |
+| Swain County, North Carolina | 7621 | 7052 | 8.07% |
+| Transylvania County, North Carolina | 21513 | 20780 | 3.53% |
+| Tyrrell County, North Carolina | 1757 | 1757 | 0.00% |
+| Union County, North Carolina | 141276 | 139355 | 1.38% |
+| Vance County, North Carolina | 22420 | 20092 | 11.59% |
+| Wake County, North Carolina | 680297 | 653580 | 4.09% |
+| Warren County, North Carolina | 10849 | 10013 | 8.35% |
+| Washington County, North Carolina | 6365 | 5944 | 7.08% |
+| Watauga County, North Carolina | 30977 | 33095 | 6.40% |
+| Wayne County, North Carolina | 59554 | 54762 | 8.75% |
+| Wilkes County, North Carolina | 34834 | 36320 | 4.09% |
+| Wilson County, North Carolina | 40865 | 40045 | 2.05% |
+| Yadkin County, North Carolina | 21034 | 20397 | 3.12% |
+| Yancey County, North Carolina | 11080 | 11283 | 1.80% |
 
     ## # A tibble: 1 × 3
     ##   Predicted_Votes Actual_Votes MAPE 
     ##             <int>        <dbl> <chr>
-    ## 1         5745767      5697116 5.47%
+    ## 1         5909921      5699141 5.62%
 
-    ## [1] "R squared:  0.997845805380116"
+    ## [1] "NC R-squared (scaled turnout): 0.6493"
+
+## National 2024 Validation
+
+Having demonstrated the model’s performance on North Carolina, let’s now
+evaluate how the model performs across all US states (excluding Alaska)
+in the 2024 presidential election.
+
+    ## [1] "National R-squared (scaled turnout): 0.4679"
+
+    ## [1] "National MAE: 3438 votes"
+
+    ## [1] "National MAPE: 7.26%"
+
+    ## [1] "Counties evaluated: 3072"
+
+![](README_files/figure-gfm/national-2024-scatter-1.png)<!-- -->
+
+### State-Level Breakdown
+
+| State | N_Counties | Total_Actual | Total_Predicted | Total_Error_Pct | MAE | MAPE | R_Squared |
+|:---|---:|---:|---:|:---|---:|:---|---:|
+| CA | 58 | 15862678 | 16199887 | 2.13% | 12047 | 6.60% | 0.5460 |
+| TX | 250 | 11387360 | 11596840 | 1.84% | 3376 | 10.87% | 0.4900 |
+| FL | 67 | 10893752 | 11720480 | 7.59% | 15003 | 7.40% | 0.5527 |
+| NY | 62 | 8262495 | 7763967 | 6.03% | 9881 | 8.69% | 0.6933 |
+| PA | 67 | 7034206 | 7182482 | 2.11% | 3486 | 4.78% | 0.7018 |
+| OH | 88 | 5767788 | 5945850 | 3.09% | 3486 | 4.06% | 0.8056 |
+| NC | 100 | 5699141 | 5909968 | 3.70% | 3167 | 5.62% | 0.6493 |
+| MI | 83 | 5664186 | 5959316 | 5.21% | 4105 | 4.58% | 0.6153 |
+| IL | 102 | 5633310 | 5922508 | 5.13% | 3815 | 4.76% | 0.6521 |
+| GA | 158 | 5248353 | 5458558 | 4.01% | 2447 | 9.06% | 0.5844 |
+| VA | 133 | 4482576 | 4755598 | 6.09% | 2803 | 6.83% | 0.7335 |
+| NJ | 21 | 4272725 | 4560349 | 6.73% | 14003 | 5.92% | 0.8429 |
+| WA | 39 | 3924243 | 4291091 | 9.35% | 10217 | 6.59% | 0.5989 |
+| MA | 14 | 3473668 | 3666895 | 5.56% | 15287 | 5.55% | 0.6886 |
+| WI | 72 | 3422918 | 3650889 | 6.66% | 3309 | 7.48% | 0.7821 |
+| AZ | 15 | 3412953 | 3646607 | 6.85% | 18729 | 8.67% | 0.1798 |
+| MN | 87 | 3253920 | 3488831 | 7.22% | 2882 | 6.96% | 0.4305 |
+| CO | 61 | 3169115 | 3479863 | 9.81% | 5330 | 9.07% | 0.5793 |
+| TN | 95 | 3063942 | 3168839 | 3.42% | 2681 | 5.90% | 0.5188 |
+| MD | 24 | 3038334 | 3231753 | 6.37% | 8770 | 4.97% | 0.7843 |
+| IN | 92 | 2936677 | 2999841 | 2.15% | 1987 | 4.48% | 0.7215 |
+| MO | 115 | 2871039 | 2978304 | 3.74% | 2513 | 7.89% | 0.4513 |
+| SC | 46 | 2548140 | 2597442 | 1.93% | 2535 | 6.04% | 0.4997 |
+| AL | 67 | 2264972 | 2285343 | 0.90% | 1962 | 6.76% | 0.3360 |
+| OR | 36 | 2244493 | 2371007 | 5.64% | 4279 | 5.28% | 0.4553 |
+| KY | 120 | 2074530 | 2051083 | 1.13% | 924 | 6.53% | 0.6011 |
+| LA | 64 | 2006975 | 1952339 | 2.72% | 2351 | 10.60% | 0.2879 |
+| IA | 99 | 1674011 | 1740455 | 3.97% | 1054 | 6.17% | 0.4188 |
+| OK | 77 | 1566173 | 1592185 | 1.66% | 1213 | 6.38% | 0.5824 |
+| UT | 28 | 1487944 | 1702580 | 14.43% | 8036 | 7.68% | 0.1830 |
+| NV | 17 | 1484840 | 1563282 | 5.28% | 7052 | 9.09% | 0.5588 |
+| KS | 105 | 1327591 | 1398320 | 5.33% | 896 | 7.68% | 0.5295 |
+| MS | 82 | 1228008 | 1194542 | 2.73% | 1126 | 9.52% | 0.3399 |
+| AR | 72 | 1165888 | 1161816 | 0.35% | 1214 | 8.33% | 0.5332 |
+| NE | 93 | 947159 | 1007597 | 6.38% | 762 | 6.95% | 0.4999 |
+| ID | 44 | 905057 | 969188 | 7.09% | 1820 | 9.58% | 0.3677 |
+| NH | 10 | 826189 | 889399 | 7.65% | 6615 | 5.44% | 0.5076 |
+| ME | 16 | 824806 | 863134 | 4.65% | 2531 | 4.34% | 0.6715 |
+| NM | 16 | 809679 | 840895 | 3.86% | 2959 | 8.68% | 0.6120 |
+| WV | 55 | 762390 | 726293 | 4.73% | 932 | 7.71% | 0.5818 |
+| MT | 55 | 602163 | 635947 | 5.61% | 908 | 9.05% | 0.5143 |
+| HI | 4 | 516701 | 534780 | 3.50% | 9135 | 6.30% | 0.5872 |
+| RI | 5 | 511816 | 510252 | 0.31% | 5562 | 6.35% | 0.3655 |
+| DE | 3 | 511697 | 545006 | 6.51% | 15127 | 7.39% | 0.4884 |
+| SD | 65 | 425860 | 433859 | 1.88% | 333 | 7.65% | 0.6312 |
+| VT | 14 | 372885 | 381514 | 2.31% | 838 | 3.68% | 0.6766 |
+| ND | 52 | 367508 | 370178 | 0.73% | 425 | 6.98% | 0.4408 |
+| DC | 1 | 325879 | 288559 | 11.45% | 37320 | 11.45% | NA |
+| WY | 23 | 269048 | 289065 | 7.44% | 1191 | 6.72% | 0.5228 |
+
+State-Level Prediction Performance (2024)
+
+![](README_files/figure-gfm/national-2024-state-error-chart-1.png)<!-- -->

@@ -864,91 +864,106 @@ Using R's ```glmnet``` package, we can use regularization to arrive at a more pa
 
 As mentioned above approach will also have the benefit of hopefully removing (via regularization penalization) some of the SVI features where there is excessive multicollinearity (if any). Using ```glmnet```, I've fixed the alpha parameter to 1, forcing a lasso regularization regime with L2 distances penalization, which is known to be better at "culling" the feature space to arrive at a more parsimonious model with fewer features).
 
+### Refining the Feature Space
+
+Before fitting the regularized model, several refinements to the feature set are warranted:
+
+**Removing EP_POV**: The poverty variable (EP_POV) changed its definition from 100% of the federal poverty level (in SVI 2010-2018) to 150% of the poverty level (in SVI 2020+). This introduces a structural break in the feature across the training data, making it unreliable as a predictor. It is excluded from the final model.
+
+**Log-transforming skewed variables**: Several EP_ variables (EP_LIMENG, EP_CROWD, EP_MUNIT) exhibit strong right-skew, with many counties clustered near zero. Applying a ```log(1 + x)``` transformation improves linearity with the response.
+
+**Adding log(population)**: County total population (```E_TOTPOP```, already present in the SVI data) serves as a proxy for county scale and urbanicity. We include ```log(E_TOTPOP)``` to capture the well-known relationship between county size and turnout patterns.
+
+**Adding election year**: Including the election year as a numeric feature allows the model to capture secular shifts in the relationship between SVI variables and turnout over time. Lasso regularization will zero this out if it is not informative.
+
+**Weighting by county size**: Counties vary enormously in population, and ACS estimates for small counties have substantially higher standard errors. Weighting observations by ```log(VEP)``` in the loss function allows the model to focus on counties where the signal-to-noise ratio is highest.
+
+**Leave-one-year-out cross-validation**: Rather than random 10-fold CV (which mixes counties from different election years in each fold), we use leave-one-year-out CV. This trains on two election cycles and tests on the third, directly measuring whether the model generalizes across elections — the actual use case.
+
 ### Lasso Model Results
 
-Using a matrix containing all EP_ features as well as all interaction features, below shows a chart with the regressor values for primary variables and interactions that emerged from the ```glmnet``` process (where features where the absolute value of the regressor term is greater than .0005, as well as the intercept, are both excluded).
+Using the refined feature matrix (with all pairwise interactions), below shows a chart with the regressor values for primary variables and interactions that emerged from the ```glmnet``` process (where features where the absolute value of the regressor term is greater than .0005, as well as the intercept, are both excluded).
 
 
 ```{r turnout-model-regularization, echo=F, include=T, warning=F, error=F}
 
+# Add derived features to model_data
+model_data <- model_data %>%
+  mutate(log_pop = log(E_TOTPOP),
+         log_EP_LIMENG = log1p(EP_LIMENG),
+         log_EP_CROWD = log1p(EP_CROWD),
+         log_EP_MUNIT = log1p(EP_MUNIT))
+
+# Build predictor matrix: EP_POV removed (definition changed in 2020),
+# log-transforms applied to skewed variables, log(pop) and year added
 predictors_ep <- model_data %>%
-  select(EP_NOHSDP, EP_AGE65, EP_AGE17, EP_SNGPNT, EP_POV, EP_UNEMP,
-         EP_LIMENG, EP_MINRTY, EP_MUNIT, EP_MOBILE, EP_CROWD, EP_NOVEH,
-         EP_GROUPQ) %>% # Select RPL_THEMES AND EP variables
-  model.matrix(~ .^2 - 1, .)  
+  select(EP_NOHSDP, EP_AGE65, EP_AGE17, EP_SNGPNT, EP_UNEMP,
+         log_EP_LIMENG, EP_MINRTY, log_EP_MUNIT, EP_MOBILE, log_EP_CROWD,
+         EP_NOVEH, EP_GROUPQ, log_pop, year) %>%
+  model.matrix(~ .^2 - 1, .)
 
-response <- model_data$scaled_turnout # Set response variable
+response <- model_data$scaled_turnout
+obs_weights <- log(model_data$VEP_denom)
 
-# Convert predictors to matrix format for glmnet
 x_matrix_ep <- predictors_ep
 y_vector <- response
 
 set.seed(8675309)  # Set seed for reproducibility
 
-# Create data partitions
-train_index <- createDataPartition(model_data$year, p = 0.8, list = FALSE)
-
-x_train_ep <- x_matrix_ep[train_index, ]
-y_train <- y_vector[train_index]
-x_test_ep <- x_matrix_ep[-train_index, ]
-y_test <- y_vector[-train_index]
-
-# Adjust the lambda grid to be fine-grained and range from small to large values
-lambda_grid <- 10^seq(-6, 0, length = 100)  # Range from 0.000001 to 1
-alpha_grid <- seq(.8, 1, length=10)
-tune_grid <- expand.grid(alpha = alpha_grid, lambda = lambda_grid)
-
-# Define train control for 10-fold cross-validation
-train_control <- trainControl(
-  method = "cv",
-  number = 10
+# Leave-one-year-out cross-validation folds
+fold_indices <- list(
+  fold_2012 = which(model_data$year != 2012),
+  fold_2016 = which(model_data$year != 2016),
+  fold_2020 = which(model_data$year != 2020)
 )
 
-# Run the train function with the custom grid
+# Adjust the lambda grid to be fine-grained and range from small to large values
+lambda_grid <- 10^seq(-6, 0, length = 100)
+alpha_grid <- seq(.8, 1, length = 10)
+tune_grid <- expand.grid(alpha = alpha_grid, lambda = lambda_grid)
+
+# Define train control for leave-one-year-out cross-validation
+train_control <- trainControl(
+  method = "cv",
+  index = fold_indices
+)
+
+# Run the train function with the custom grid, weighted by log(VEP)
 model_ep <- train(
-  x = x_train_ep,
-  y = y_train,
+  x = x_matrix_ep,
+  y = y_vector,
+  weights = obs_weights,
   method = "glmnet",
-  metric="Rsquared",
-  maximize = T,
+  metric = "Rsquared",
+  maximize = TRUE,
   trControl = train_control,
   tuneGrid = tune_grid
 )
 
-# Print the model results
-# print(model_ep)
-
-# Use the best model to predict on the test set
-predictions <- predict(model_ep, newdata = x_test_ep)
-
-# Evaluate the performance
-test_results <- data.frame(
-  Actual = y_test,
-  Predicted = predictions
-)
-
-cor(test_results$Actual, test_results$Predicted)^2
-
-# Extract variable importance from the model
-importance <- varImp(model_ep, scale = FALSE)
-#print(importance$importance)
+# Report the leave-one-year-out CV R-squared on scaled turnout
+best_tune <- model_ep$results %>%
+  filter(alpha == model_ep$bestTune$alpha, lambda == model_ep$bestTune$lambda)
+print(paste("Leave-one-year-out CV R-squared (on scaled turnout):",
+            round(best_tune$Rsquared, 4)))
 
 # Extract coefficients from the best glmnet model
-best_lambda <- model_ep$bestTune$lambda  # Get the best lambda value
+best_lambda <- model_ep$bestTune$lambda
 coefficients <- coef(model_ep$finalModel, s = best_lambda)
 
 # Convert to a data frame for easier plotting
 coeff_df <- as.data.frame(as.matrix(coefficients))
+colnames(coeff_df) <- "coefficient"
 coeff_df$Feature <- rownames(coeff_df)
-coeff_df <- coeff_df %>% filter(Feature != "(Intercept)") %>% 
-  filter(abs(s1) >= .0005)
+coeff_df <- coeff_df %>% filter(Feature != "(Intercept)") %>%
+  filter(abs(coefficient) >= .0005)
 
 # Plot coefficients using ggplot2
-ggplot(coeff_df, aes(x = reorder(Feature, s1), y = s1)) +
+ggplot(coeff_df, aes(x = reorder(Feature, coefficient), y = coefficient)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   coord_flip() +
   labs(
     title = "Coefficient Plot for glmnet Model",
+    subtitle = "Features with |coefficient| >= 0.0005",
     x = "Feature",
     y = "Coefficient Value"
   ) +
@@ -956,70 +971,178 @@ ggplot(coeff_df, aes(x = reorder(Feature, s1), y = s1)) +
 
 ```
 
-# Testing the model on North Carolina's 2024 results
+# Testing the Model on 2024 Results
 
-Finally, I want to test my model on my home state's results in 2024. Here the model performs quite well, showing an overall R-squared of .99 (!) on this data. Wow. Don't have time to unpack this now but will poke around later.
+Now that we have a trained model, let's see how it performs on completely unseen data: the 2024 presidential election. The model was trained exclusively on 2012, 2016, and 2020 data, so 2024 represents a true out-of-sample validation.
 
-```{r nc-vote, include=T, echo=F, warning=F, error=F}
+```{r national-2024-data-prep, include=F, echo=F, warning=F, error=F}
 
-nc_election_data <- election_data %>% 
-  filter(year == 2024) 
+# Prepare national 2024 model data using 2022 SVI
+model_data_2024 <- svi_all %>%
+  filter(RPL_THEMES >= 0) %>%
+  filter(year %in% c(2022)) %>%
+  mutate(year = year + 2) %>%
+  inner_join(election_data_w_vep_no_out %>% select(GEOID, year, winning_party, VEP_denom, turnout_vep)) %>%
+  group_by(year, ST_ABBR) %>%
+  mutate(turnout_bystate_total = sum(turnout_vep*VEP_denom) / sum(VEP_denom)) %>%
+  ungroup() %>%
+  mutate(scaled_turnout = turnout_vep / turnout_bystate_total)
 
-# Check against AP
-total_nc_votes <- sum(nc_election_data$totalvotes)
+# Add derived features (matching training feature engineering exactly)
+model_data_2024 <- model_data_2024 %>%
+  mutate(log_pop = log(E_TOTPOP),
+         log_EP_LIMENG = log1p(EP_LIMENG),
+         log_EP_CROWD = log1p(EP_CROWD),
+         log_EP_MUNIT = log1p(EP_MUNIT))
 
-# Apply model to 2022 SVI factors
-model_data_2024 <- svi_all %>% 
-  filter(RPL_THEMES >= 0) %>% 
-  filter(year %in% c(2022)) %>% 
-  mutate(year = year + 2) %>% 
-  inner_join(election_data_w_vep_no_out %>% select(GEOID, year, winning_party, VEP_denom, turnout_vep)) %>% 
-  group_by(year, ST_ABBR) %>% 
-  mutate(turnout_bystate_total = sum(turnout_vep*VEP_denom) / sum(VEP_denom)) %>% 
-  ungroup() %>% 
-  mutate(scaled_turnout = turnout_vep / turnout_bystate_total) 
+# Build prediction matrix (matching training matrix exactly)
+predictors_ep_2024 <- model_data_2024 %>%
+  select(EP_NOHSDP, EP_AGE65, EP_AGE17, EP_SNGPNT, EP_UNEMP,
+         log_EP_LIMENG, EP_MINRTY, log_EP_MUNIT, EP_MOBILE, log_EP_CROWD,
+         EP_NOVEH, EP_GROUPQ, log_pop, year) %>%
+  model.matrix(~ .^2 - 1, .)
 
-predictors_ep <- model_data_2024 %>%
-  select(EP_NOHSDP, EP_AGE65, EP_AGE17, EP_SNGPNT, EP_POV, EP_UNEMP,
-         EP_LIMENG, EP_MINRTY, EP_MUNIT, EP_MOBILE, EP_CROWD, EP_NOVEH,
-         EP_GROUPQ, RPL_THEMES) %>% # Select RPL_THEMES AND EP variables
-  model.matrix(~ .^2 - 1, .)  
+# Generate national predictions
+predictions_2024 <- predict(model_ep, newdata = predictors_ep_2024)
 
-response <- model_data_2024$scaled_turnout # Set response variable
-
-# Convert predictors to matrix format for glmnet
-x_matrix_ep <- predictors_ep
-y_vector <- response
-
-predictions <- predict(model_ep, newdata = x_matrix_ep)
-
-# Evaluate the performance
-test_results <- data.frame(
-  Actual = y_vector,
-  Predicted = predictions
-)
-
-analysis_2024 <- model_data_2024 %>% 
-  bind_cols(test_results) %>% 
+# Build national analysis dataframe
+analysis_2024 <- model_data_2024 %>%
+  mutate(Predicted = predictions_2024,
+         Actual = scaled_turnout) %>%
   mutate(Actual_Votes = turnout_vep * VEP_denom,
          Predicted_Votes = Predicted * turnout_bystate_total * VEP_denom)
 
-results_table <- analysis_2024 %>% 
-  select(LOCATION, Predicted_Votes, Actual_Votes) %>% 
-  mutate(Predicted_Votes = as.integer(Predicted_Votes)) %>% 
+```
+
+## North Carolina: A Closer Look
+
+First, let's zoom in on my home state of North Carolina, where the model performs quite well on the 2024 data.
+
+```{r nc-vote, include=T, echo=F, warning=F, error=F}
+
+# Filter to NC for the home-state spotlight
+analysis_nc <- analysis_2024 %>%
+  filter(ST_ABBR == "NC")
+
+results_table_nc <- analysis_nc %>%
+  select(LOCATION, Predicted_Votes, Actual_Votes) %>%
+  mutate(Predicted_Votes = as.integer(Predicted_Votes)) %>%
   mutate(Absolute_Error_Pct = scales::label_percent(accuracy=.01)(abs(Actual_Votes - Predicted_Votes)/Actual_Votes))
 
-kableExtra::kable(results_table)
+kableExtra::kable(results_table_nc)
 
-results_summary <- results_table %>% 
-  mutate(Absolute_Error_Pct = abs(Actual_Votes - Predicted_Votes)/Actual_Votes) %>% 
+results_summary_nc <- results_table_nc %>%
+  mutate(Absolute_Error_Pct = abs(Actual_Votes - Predicted_Votes)/Actual_Votes) %>%
   summarize(Predicted_Votes = sum(Predicted_Votes),
             Actual_Votes = sum(Actual_Votes),
             MAPE = scales::label_percent(accuracy=.01)(mean(Absolute_Error_Pct)))
 
-print(results_table)
-print(results_summary)
+print(results_summary_nc)
 
-print(paste("R squared: ", cor(analysis_2024$Actual_Votes, analysis_2024$Predicted_Votes)^2))
+print(paste("NC R-squared (scaled turnout):", round(cor(analysis_nc$Actual, analysis_nc$Predicted)^2, 4)))
+
+```
+
+## National 2024 Validation
+
+Having demonstrated the model's performance on North Carolina, let's now evaluate how the model performs across all US states (excluding Alaska) in the 2024 presidential election.
+
+```{r national-2024-metrics, include=T, echo=F, warning=F, error=F}
+
+# Overall National Metrics - R-squared on scaled turnout (the model response)
+national_r2 <- cor(analysis_2024$Actual, analysis_2024$Predicted)^2
+
+national_metrics <- analysis_2024 %>%
+  mutate(abs_error = abs(Actual_Votes - Predicted_Votes),
+         abs_pct_error = abs_error / Actual_Votes) %>%
+  summarize(
+    R_Squared = round(national_r2, 4),
+    MAE = round(mean(abs_error), 0),
+    MAPE = scales::label_percent(accuracy = 0.01)(mean(abs_pct_error)),
+    Total_Predicted = as.integer(sum(Predicted_Votes)),
+    Total_Actual = sum(Actual_Votes),
+    N_Counties = n()
+  )
+
+print(paste("National R-squared (scaled turnout):", round(national_r2, 4)))
+print(paste("National MAE:", round(national_metrics$MAE, 0), "votes"))
+print(paste("National MAPE:", national_metrics$MAPE))
+print(paste("Counties evaluated:", national_metrics$N_Counties))
+
+```
+
+```{r national-2024-scatter, include=T, echo=F, warning=F, error=F, fig.height=8, fig.width=10}
+
+# Actual vs. Predicted Scatter Plot
+analysis_2024 %>%
+  ggplot(aes(x = Actual_Votes, y = Predicted_Votes)) +
+  geom_point(aes(color = winning_party, size = VEP_denom), alpha = 0.4) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black") +
+  scale_color_manual(values = c("DEMOCRAT" = "blue", "REPUBLICAN" = "red")) +
+  scale_x_continuous(labels = scales::label_comma()) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Actual vs. Predicted County-Level Vote Counts (2024)",
+    subtitle = paste0("R\u00b2 (scaled turnout) = ", round(national_r2, 4)),
+    x = "Actual Total Votes",
+    y = "Predicted Total Votes",
+    color = "Winning Party"
+  ) +
+  guides(size = "none") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.title = element_text(size = 12)
+  )
+
+```
+
+### State-Level Breakdown
+
+```{r national-2024-state-breakdown, include=T, echo=F, warning=F, error=F}
+
+# State-Level Breakdown
+state_results <- analysis_2024 %>%
+  mutate(abs_error = abs(Actual_Votes - Predicted_Votes),
+         abs_pct_error = abs_error / Actual_Votes) %>%
+  group_by(State = ST_ABBR) %>%
+  summarize(
+    N_Counties = n(),
+    Total_Actual = sum(Actual_Votes),
+    Total_Predicted = as.integer(sum(Predicted_Votes)),
+    Total_Error_Pct = scales::label_percent(accuracy = 0.01)(
+      abs(sum(Predicted_Votes) - sum(Actual_Votes)) / sum(Actual_Votes)),
+    MAE = round(mean(abs_error), 0),
+    MAPE = scales::label_percent(accuracy = 0.01)(mean(abs_pct_error)),
+    R_Squared = round(cor(Actual, Predicted)^2, 4),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Actual))
+
+kableExtra::kable(state_results, caption = "State-Level Prediction Performance (2024)")
+
+```
+
+```{r national-2024-state-error-chart, include=T, echo=F, warning=F, error=F, fig.height=10, fig.width=8}
+
+# State-Level MAPE Bar Chart
+state_mape <- analysis_2024 %>%
+  mutate(abs_pct_error = abs(Actual_Votes - Predicted_Votes) / Actual_Votes) %>%
+  group_by(State = ST_ABBR) %>%
+  summarize(MAPE = mean(abs_pct_error), .groups = "drop") %>%
+  arrange(MAPE)
+
+state_mape %>%
+  ggplot(aes(x = reorder(State, MAPE), y = MAPE)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 0.1)) +
+  coord_flip() +
+  labs(
+    title = "Mean Absolute Percentage Error (MAPE) by State",
+    subtitle = "2024 Presidential Election Predictions",
+    x = "State",
+    y = "MAPE"
+  ) +
+  theme_minimal()
 
 ```

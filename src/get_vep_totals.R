@@ -18,8 +18,17 @@ library(tidyverse)
 get_vep_totals <- function()
 {
   
-  apikey <- rstudioapi::askForPassword(prompt = "Please enter your USCB API Key")
-  census_api_key(apikey)
+  # Use cached key from .Renviron (set via census_api_key(key, install=TRUE))
+  # Falls back to RStudio prompt if available and no cached key found
+  apikey <- Sys.getenv("CENSUS_API_KEY")
+  if (nchar(apikey) > 0) {
+    census_api_key(apikey)
+  } else if (rstudioapi::isAvailable()) {
+    apikey <- rstudioapi::askForPassword(prompt = "Please enter your USCB API Key")
+    census_api_key(apikey)
+  } else {
+    stop("No Census API key found. Set CENSUS_API_KEY in .Renviron or run in RStudio.")
+  }
   
   # Load all variables for ACS 5-year data (2020) and store them in a data frame. For estimating the total
   # voting-eligible population (VEP), we will use the following four variables:
@@ -97,7 +106,6 @@ get_vep_totals <- function()
     geography = "county",
     variables = c("B05003_008", "B05003_012", "B05003_019", "B05003_023"),
     year = 2022,
-    state = "NC",
     survey = "acs5",
     output = "wide"
   ) %>% 
